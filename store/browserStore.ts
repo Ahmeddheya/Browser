@@ -2,23 +2,25 @@ import { create } from 'zustand';
 import { StorageManager, BrowserSettings, HistoryItem, BookmarkItem } from '../utils/storage';
 import SearchIndexManager from '../utils/searchIndex';
 import DownloadManager from '../utils/downloadManager';
+import { AdvancedBrowserSettings } from '../types/settings';
 
 interface BrowserState {
   // Settings
-  settings: BrowserSettings;
+  settings: AdvancedBrowserSettings;
   loadSettings: () => Promise<void>;
-  updateSetting: <K extends keyof BrowserSettings>(key: K, value: BrowserSettings[K]) => Promise<void>;
+  updateSetting: <K extends keyof AdvancedBrowserSettings>(key: K, value: AdvancedBrowserSettings[K]) => Promise<void>;
   
   // Ad blocking
   isAdBlockEnabled: boolean;
   toggleAdBlock: () => Promise<void>;
   
   // Tabs management
-  tabs: string[];
-  activeTab: number;
-  addTab: () => void;
-  closeTab: (index: number) => void;
-  switchTab: (index: number) => void;
+  tabs: Array<{ id: string; title: string; url: string; isActive: boolean }>;
+  activeTabs: Array<{ id: string; title: string; url: string }>;
+  suspendedTabs: Array<{ id: string; title: string; url: string; suspendedAt: number }>;
+  addTab: (url: string, title: string) => void;
+  closeTab: (tabId: string) => void;
+  restoreTab: (tabId: string) => void;
   
   // Theme and appearance
   darkMode: boolean;
@@ -74,11 +76,68 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
     homepage: 'https://www.google.com',
     autoSaveHistory: true,
     maxHistoryItems: 1000,
+    customSearchEngine: '',
+    passwordManager: {
+      savePasswords: true,
+      autoSignIn: true,
+      biometricAuth: false,
+    },
+    paymentMethods: {
+      saveAndFill: true,
+    },
+    addresses: {
+      saveAndFill: true,
+    },
+    notifications: {
+      permissionRequests: true,
+      downloadComplete: true,
+      securityAlerts: true,
+    },
+    privacy: {
+      safeBrowsing: 'standard',
+      httpsFirst: true,
+      paymentMethodDetection: true,
+      preloadPages: true,
+      secureDNS: 'automatic',
+      doNotTrack: false,
+      privacySandbox: false,
+    },
+    appearance: {
+      theme: 'system',
+      fontSize: 16,
+      pageZoom: 100,
+      toolbarLayout: 'default',
+    },
+    accessibility: {
+      textToSpeech: false,
+      screenReaderSupport: false,
+      navigationAssistance: false,
+    },
+    sitePermissions: {
+      camera: 'ask',
+      location: 'ask',
+      microphone: 'ask',
+      notifications: 'ask',
+    },
+    language: {
+      preferredLanguage: 'en',
+      translationEnabled: true,
+    },
+    downloads: {
+      storageLocation: 'internal',
+      wifiOnlyDownloads: false,
+      askDownloadLocation: true,
+    },
   },
   
   loadSettings: async () => {
     try {
-      const settings = await StorageManager.getSettings();
+      const basicSettings = await StorageManager.getSettings();
+      const advancedSettings = await StorageManager.getItem<AdvancedBrowserSettings>('advanced_settings', get().settings);
+      
+      // Merge basic settings with advanced settings
+      const settings = { ...advancedSettings, ...basicSettings };
+      
       set({ 
         settings,
         darkMode: settings.darkMode,
@@ -96,7 +155,15 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
     try {
       const currentSettings = get().settings;
       const newSettings = { ...currentSettings, [key]: value };
-      await StorageManager.updateSettings({ [key]: value });
+      
+      // Update basic settings in old format for compatibility
+      if (['darkMode', 'nightMode', 'incognitoMode', 'desktopMode', 'adBlockEnabled', 'searchEngine', 'homepage', 'autoSaveHistory', 'maxHistoryItems'].includes(key as string)) {
+        await StorageManager.updateSettings({ [key]: value });
+      }
+      
+      // Update advanced settings
+      await StorageManager.setItem('advanced_settings', newSettings);
+      
       set({ settings: newSettings });
       
       // Update corresponding state variables
@@ -118,22 +185,47 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
   },
   
   // Tabs state
-  tabs: ['Home'],
-  activeTab: 0,
-  addTab: () => set((state) => ({ 
-    tabs: [...state.tabs, `Tab ${state.tabs.length + 1}`],
-    activeTab: state.tabs.length
-  })),
-  closeTab: (index) => set((state) => {
-    const newTabs = state.tabs.filter((_, i) => i !== index);
-    const newActiveTab = index === state.activeTab 
-      ? Math.max(0, state.activeTab - 1)
-      : state.activeTab > index 
-        ? state.activeTab - 1 
-        : state.activeTab;
-    return { tabs: newTabs, activeTab: newActiveTab };
-  }),
-  switchTab: (index) => set({ activeTab: index }),
+  tabs: [],
+  activeTabs: [],
+  suspendedTabs: [],
+  addTab: (url: string, title: string) => {
+    const newTab = {
+      id: `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      title,
+      url,
+      isActive: true,
+    };
+    
+    set((state) => ({
+      tabs: [...state.tabs, newTab],
+      activeTabs: [...state.activeTabs, newTab],
+    }));
+  },
+  closeTab: (tabId: string) => {
+    set((state) => {
+      const tab = state.activeTabs.find(t => t.id === tabId);
+      if (tab) {
+        return {
+          activeTabs: state.activeTabs.filter(t => t.id !== tabId),
+          suspendedTabs: [...state.suspendedTabs, { ...tab, suspendedAt: Date.now() }],
+        };
+      }
+      return state;
+    });
+  },
+  restoreTab: (tabId: string) => {
+    set((state) => {
+      const tab = state.suspendedTabs.find(t => t.id === tabId);
+      if (tab) {
+        const { suspendedAt, ...restoreTab } = tab;
+        return {
+          suspendedTabs: state.suspendedTabs.filter(t => t.id !== tabId),
+          activeTabs: [...state.activeTabs, restoreTab],
+        };
+      }
+      return state;
+    });
+  },
   
   // Theme state
   darkMode: false,

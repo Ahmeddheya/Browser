@@ -1,43 +1,77 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-interface CurrencyRate {
-  code: string;
-  symbol: string;
-  rate: number;
-  change: number;
-}
-
-interface CryptoPrice {
-  symbol: string;
-  name: string;
-  price: number;
-  change: number;
-}
+import { CurrencyAPI, CurrencyRate, CryptoPrice } from '../utils/currencyApi';
 
 export const CurrencyWidget: React.FC = () => {
-  const [currencies] = useState<CurrencyRate[]>([
-    { code: 'USD', symbol: '$', rate: 1.00, change: 0.0 },
-    { code: 'EUR', symbol: '€', rate: 0.92, change: -0.1 },
-    { code: 'GBP', symbol: '£', rate: 0.79, change: 0.2 },
-  ]);
+  const [currencies, setCurrencies] = useState<CurrencyRate[]>([]);
+  const [cryptos, setCryptos] = useState<CryptoPrice[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<number>(0);
 
-  const [cryptos] = useState<CryptoPrice[]>([
-    { symbol: 'BTC', name: 'Bitcoin', price: 43250, change: 2.5 },
-    { symbol: 'ETH', name: 'Ethereum', price: 2280, change: -1.2 },
-  ]);
+  useEffect(() => {
+    loadData();
+    
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(loadData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      const [currencyData, cryptoData] = await Promise.all([
+        CurrencyAPI.getCurrencyRates(),
+        CurrencyAPI.getCryptoPrices(),
+      ]);
+      
+      setCurrencies(currencyData.slice(0, 3)); // Show top 3 currencies
+      setCryptos(cryptoData.slice(0, 2)); // Show top 2 cryptos
+      setLastUpdate(Date.now());
+    } catch (error) {
+      console.error('Failed to load market data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatPrice = (price: number): string => {
+    if (price >= 1000) {
+      return price.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    }
+    return price.toFixed(2);
+  };
+
+  const formatChange = (change: number): string => {
+    const sign = change >= 0 ? '+' : '';
+    return `${sign}${change.toFixed(1)}%`;
+  };
 
   return (
     <View style={styles.container}>
+      {/* Header with refresh */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Market Data</Text>
+        <TouchableOpacity onPress={loadData} style={styles.refreshButton}>
+          <Ionicons name="refresh" size={20} color="#4285f4" />
+        </TouchableOpacity>
+      </View>
+
       {/* Currency Rates */}
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Currency Exchange</Text>
         <View style={styles.currencyGrid}>
           {currencies.map((currency, index) => (
             <TouchableOpacity key={index} style={styles.currencyCard}>
               <Text style={styles.currencySymbol}>{currency.symbol}</Text>
               <Text style={styles.currencyCode}>{currency.code}</Text>
-              <Text style={styles.currencyRate}>{currency.rate.toFixed(2)}</Text>
+              <Text style={styles.currencyRate}>{formatPrice(currency.rate)}</Text>
+              <Text style={[
+                styles.currencyChange,
+                { color: currency.change24h >= 0 ? '#4CAF50' : '#f44336' }
+              ]}>
+                {formatChange(currency.change24h)}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -45,31 +79,46 @@ export const CurrencyWidget: React.FC = () => {
 
       {/* Crypto Prices */}
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Cryptocurrency</Text>
         <View style={styles.cryptoGrid}>
           {cryptos.map((crypto, index) => (
             <TouchableOpacity key={index} style={styles.cryptoCard}>
               <View style={styles.cryptoHeader}>
                 <View style={styles.cryptoIcon}>
                   <Ionicons 
-                    name={crypto.symbol === 'BTC' ? 'logo-bitcoin' : 'diamond-outline'} 
+                    name={crypto.symbol === 'BTC' ? 'logo-bitcoin' : 
+                          crypto.symbol === 'ETH' ? 'diamond-outline' :
+                          crypto.symbol === 'ADA' ? 'heart-outline' : 'flash-outline'} 
                     size={20} 
-                    color={crypto.symbol === 'BTC' ? '#f7931a' : '#627eea'} 
+                    color={crypto.symbol === 'BTC' ? '#f7931a' : 
+                           crypto.symbol === 'ETH' ? '#627eea' :
+                           crypto.symbol === 'ADA' ? '#0033ad' : '#00d4aa'} 
                   />
                 </View>
                 <Text style={styles.cryptoSymbol}>{crypto.symbol}</Text>
               </View>
               <Text style={styles.cryptoName}>{crypto.name}</Text>
-              <Text style={styles.cryptoPrice}>${crypto.price.toLocaleString()}</Text>
+              <Text style={styles.cryptoPrice}>${formatPrice(crypto.price)}</Text>
               <Text style={[
                 styles.cryptoChange, 
-                { color: crypto.change >= 0 ? '#4CAF50' : '#f44336' }
+                { color: crypto.change24h >= 0 ? '#4CAF50' : '#f44336' }
               ]}>
-                {crypto.change >= 0 ? '+' : ''}{crypto.change.toFixed(1)}%
+                {formatChange(crypto.change24h)}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
+
+      {/* Last Update Info */}
+      {lastUpdate > 0 && (
+        <View style={styles.updateInfo}>
+          <Ionicons name="time-outline" size={16} color="#888" />
+          <Text style={styles.updateText}>
+            Updated {new Date(lastUpdate).toLocaleTimeString()}
+          </Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -78,8 +127,30 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  refreshButton: {
+    padding: 8,
+  },
   section: {
     marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4CAF50',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   currencyGrid: {
     flexDirection: 'row',
@@ -90,7 +161,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-    minWidth: 100,
+    minWidth: 90,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -109,6 +180,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+    marginBottom: 4,
+  },
+  currencyChange: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   cryptoGrid: {
     flexDirection: 'row',
@@ -150,5 +226,16 @@ const styles = StyleSheet.create({
   cryptoChange: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  updateInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  updateText: {
+    fontSize: 12,
+    color: '#888',
+    marginLeft: 4,
   },
 });

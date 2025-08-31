@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,13 +8,108 @@ import {
   ScrollView,
   Switch,
   Alert,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useBrowserStore } from '@/store/browserStore';
 import { router } from 'expo-router';
+import { SearchEngineSettings } from '@/components/settings/SearchEngineSettings';
+import { PasswordManagerSettings } from '@/components/settings/PasswordManagerSettings';
+import { PaymentMethodsSettings } from '@/components/settings/PaymentMethodsSettings';
+import { AddressesSettings } from '@/components/settings/AddressesSettings';
+import { PrivacySecuritySettings } from '@/components/settings/PrivacySecuritySettings';
+import { 
+  AdvancedBrowserSettings, 
+  NotificationSettings, 
+  AppearanceSettings, 
+  AccessibilitySettings,
+  SitePermissions,
+  LanguageSettings,
+  DownloadSettings 
+} from '@/types/settings';
+
+type SettingsView = 
+  | 'main' 
+  | 'search-engine' 
+  | 'password-manager' 
+  | 'payment-methods' 
+  | 'addresses' 
+  | 'privacy-security'
+  | 'notifications'
+  | 'appearance'
+  | 'accessibility'
+  | 'site-settings'
+  | 'languages'
+  | 'downloads';
 
 export default function SettingsScreen() {
+  const [currentView, setCurrentView] = useState<SettingsView>('main');
+  const [advancedSettings, setAdvancedSettings] = useState<AdvancedBrowserSettings>({
+    darkMode: false,
+    nightMode: false,
+    incognitoMode: false,
+    desktopMode: false,
+    adBlockEnabled: true,
+    searchEngine: 'google',
+    homepage: 'https://www.google.com',
+    autoSaveHistory: true,
+    maxHistoryItems: 1000,
+    customSearchEngine: '',
+    passwordManager: {
+      savePasswords: true,
+      autoSignIn: true,
+      biometricAuth: false,
+    },
+    paymentMethods: {
+      saveAndFill: true,
+    },
+    addresses: {
+      saveAndFill: true,
+    },
+    notifications: {
+      permissionRequests: true,
+      downloadComplete: true,
+      securityAlerts: true,
+    },
+    privacy: {
+      safeBrowsing: 'standard',
+      httpsFirst: true,
+      paymentMethodDetection: true,
+      preloadPages: true,
+      secureDNS: 'automatic',
+      doNotTrack: false,
+      privacySandbox: false,
+    },
+    appearance: {
+      theme: 'system',
+      fontSize: 16,
+      pageZoom: 100,
+      toolbarLayout: 'default',
+    },
+    accessibility: {
+      textToSpeech: false,
+      screenReaderSupport: false,
+      navigationAssistance: false,
+    },
+    sitePermissions: {
+      camera: 'ask',
+      location: 'ask',
+      microphone: 'ask',
+      notifications: 'ask',
+    },
+    language: {
+      preferredLanguage: 'en',
+      translationEnabled: true,
+    },
+    downloads: {
+      storageLocation: 'internal',
+      wifiOnlyDownloads: false,
+      askDownloadLocation: true,
+    },
+  });
+
   const { 
     darkMode, 
     isAdBlockEnabled, 
@@ -23,30 +118,154 @@ export default function SettingsScreen() {
     incognitoMode,
     toggleIncognitoMode,
     desktopMode,
-    toggleDesktopMode
+    toggleDesktopMode,
+    nightMode,
+    toggleNightMode,
+    updateSetting,
   } = useBrowserStore();
 
-  const handleNavigate = (feature: string) => {
-    Alert.alert(feature, `${feature} functionality will be implemented here`);
+  // Sync with browser store
+  useEffect(() => {
+    setAdvancedSettings(prev => ({
+      ...prev,
+      darkMode,
+      nightMode,
+      incognitoMode,
+      desktopMode,
+      adBlockEnabled: isAdBlockEnabled,
+    }));
+  }, [darkMode, nightMode, incognitoMode, desktopMode, isAdBlockEnabled]);
+
+  const handleSettingChange = async (section: string, key: string, value: any) => {
+    setAdvancedSettings(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section as keyof AdvancedBrowserSettings],
+        [key]: value,
+      },
+    }));
+
+    // Update browser store for core settings
+    if (section === 'core') {
+      await updateSetting(key as any, value);
+    }
   };
 
+  const handleBasicSettingChange = async (key: string, value: any) => {
+    setAdvancedSettings(prev => ({
+      ...prev,
+      [key]: value,
+    }));
+
+    // Update browser store
+    await updateSetting(key as any, value);
+  };
+
+  // Render different views based on currentView
+  if (currentView === 'search-engine') {
+    return (
+      <SearchEngineSettings
+        currentEngine={advancedSettings.searchEngine}
+        onEngineChange={(engine) => handleBasicSettingChange('searchEngine', engine)}
+        onBack={() => setCurrentView('main')}
+      />
+    );
+  }
+
+  if (currentView === 'password-manager') {
+    return (
+      <PasswordManagerSettings
+        settings={advancedSettings.passwordManager}
+        onSettingChange={(key, value) => handleSettingChange('passwordManager', key, value)}
+        onBack={() => setCurrentView('main')}
+      />
+    );
+  }
+
+  if (currentView === 'payment-methods') {
+    return (
+      <PaymentMethodsSettings
+        saveAndFill={advancedSettings.paymentMethods.saveAndFill}
+        onToggleSaveAndFill={(value) => handleSettingChange('paymentMethods', 'saveAndFill', value)}
+        onBack={() => setCurrentView('main')}
+      />
+    );
+  }
+
+  if (currentView === 'addresses') {
+    return (
+      <AddressesSettings
+        saveAndFill={advancedSettings.addresses.saveAndFill}
+        onToggleSaveAndFill={(value) => handleSettingChange('addresses', 'saveAndFill', value)}
+        onBack={() => setCurrentView('main')}
+      />
+    );
+  }
+
+  if (currentView === 'privacy-security') {
+    return (
+      <PrivacySecuritySettings
+        settings={advancedSettings.privacy}
+        onSettingChange={(key, value) => handleSettingChange('privacy', key, value)}
+        onBack={() => setCurrentView('main')}
+      />
+    );
+  }
+
+  // Main settings view
   const settingsGroups = [
     {
-      title: 'Appearance',
+      title: 'Basics',
       items: [
         {
-          icon: 'moon-outline',
-          title: 'Dark Mode',
-          subtitle: 'Always use dark theme',
-          type: 'switch',
-          value: darkMode,
-          onToggle: toggleDarkMode,
+          icon: 'search-outline',
+          title: 'Search engine',
+          subtitle: advancedSettings.searchEngine === 'google' ? 'Google' : 
+                   advancedSettings.searchEngine === 'bing' ? 'Bing' :
+                   advancedSettings.searchEngine === 'duckduckgo' ? 'DuckDuckGo' :
+                   advancedSettings.searchEngine === 'yahoo' ? 'Yahoo' :
+                   advancedSettings.searchEngine === 'ecosia' ? 'Ecosia' : 'Custom',
+          type: 'navigate',
+          onPress: () => setCurrentView('search-engine'),
+        },
+      ],
+    },
+    {
+      title: 'Data Management',
+      items: [
+        {
+          icon: 'key-outline',
+          title: 'Password Manager',
+          subtitle: 'Manage saved passwords and security',
+          type: 'navigate',
+          onPress: () => setCurrentView('password-manager'),
+        },
+        {
+          icon: 'card-outline',
+          title: 'Payment methods',
+          subtitle: 'Manage payment cards and apps',
+          type: 'navigate',
+          onPress: () => setCurrentView('payment-methods'),
+        },
+        {
+          icon: 'location-outline',
+          title: 'Addresses and more',
+          subtitle: 'Manage saved addresses and contact info',
+          type: 'navigate',
+          onPress: () => setCurrentView('addresses'),
         },
       ],
     },
     {
       title: 'Privacy & Security',
       items: [
+        {
+          icon: 'shield-checkmark-outline',
+          title: 'Privacy and security',
+          subtitle: 'Advanced privacy and security settings',
+          type: 'navigate',
+          onPress: () => setCurrentView('privacy-security'),
+        },
         {
           icon: 'shield-outline',
           title: 'Ad Blocking',
@@ -63,38 +282,40 @@ export default function SettingsScreen() {
           value: incognitoMode,
           onToggle: toggleIncognitoMode,
         },
-        {
-          icon: 'time-outline',
-          title: 'History',
-          subtitle: 'Manage browsing history',
-          type: 'navigate',
-          onPress: () => handleNavigate('History'),
-        },
       ],
     },
     {
-      title: 'Browser Features',
+      title: 'Appearance & Experience',
       items: [
         {
-          icon: 'search-outline',
-          title: 'Find in Page',
-          subtitle: 'Search current page',
+          icon: 'notifications-outline',
+          title: 'Notifications',
+          subtitle: 'Manage notification preferences',
           type: 'navigate',
-          onPress: () => handleNavigate('Find in Page'),
+          onPress: () => setCurrentView('notifications'),
         },
         {
-          icon: 'bookmark-outline',
-          title: 'Bookmarks',
-          subtitle: 'Manage saved sites',
+          icon: 'color-palette-outline',
+          title: 'Appearance',
+          subtitle: 'Theme, fonts, and layout',
           type: 'navigate',
-          onPress: () => handleNavigate('Bookmarks'),
+          onPress: () => setCurrentView('appearance'),
         },
         {
-          icon: 'download-outline',
-          title: 'Downloads',
-          subtitle: 'View downloaded files',
-          type: 'navigate',
-          onPress: () => handleNavigate('Downloads'),
+          icon: 'moon-outline',
+          title: 'Dark Mode',
+          subtitle: 'Always use dark theme',
+          type: 'switch',
+          value: darkMode,
+          onToggle: toggleDarkMode,
+        },
+        {
+          icon: 'moon',
+          title: 'Night Mode',
+          subtitle: 'Apply night filter to web pages',
+          type: 'switch',
+          value: nightMode,
+          onToggle: toggleNightMode,
         },
         {
           icon: 'desktop-outline',
@@ -104,26 +325,49 @@ export default function SettingsScreen() {
           value: desktopMode,
           onToggle: toggleDesktopMode,
         },
+      ],
+    },
+    {
+      title: 'Advanced',
+      items: [
         {
-          icon: 'share-outline',
-          title: 'Share',
-          subtitle: 'Share current page',
+          icon: 'accessibility-outline',
+          title: 'Accessibility',
+          subtitle: 'Screen reader and navigation assistance',
           type: 'navigate',
-          onPress: () => handleNavigate('Share'),
+          onPress: () => setCurrentView('accessibility'),
+        },
+        {
+          icon: 'settings-outline',
+          title: 'Site Settings',
+          subtitle: 'Camera, location, microphone permissions',
+          type: 'navigate',
+          onPress: () => setCurrentView('site-settings'),
+        },
+        {
+          icon: 'language-outline',
+          title: 'Languages',
+          subtitle: 'Language and translation settings',
+          type: 'navigate',
+          onPress: () => setCurrentView('languages'),
+        },
+        {
+          icon: 'download-outline',
+          title: 'Downloads',
+          subtitle: 'Download location and preferences',
+          type: 'navigate',
+          onPress: () => setCurrentView('downloads'),
         },
       ],
     },
   ];
 
   const renderSettingItem = (item: any, index: number) => {
-    const isLastItem = index === settingsGroups.flatMap(group => group.items).length - 1;
-    
     return (
       <TouchableOpacity 
         key={index} 
         style={[
-          styles.settingItem, 
-          isLastItem && styles.lastSettingItem,
+          styles.settingItem,
           item.value && styles.activeSettingItem
         ]}
         onPress={item.type === 'navigate' ? item.onPress : undefined}
@@ -173,7 +417,9 @@ export default function SettingsScreen() {
             <Ionicons name="arrow-back" size={24} color="#ffffff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Settings</Text>
-          <View style={{ width: 24 }} />
+          <TouchableOpacity onPress={() => Alert.alert('Help', 'Settings help information')}>
+            <Ionicons name="help-circle-outline" size={24} color="#ffffff" />
+          </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -188,11 +434,27 @@ export default function SettingsScreen() {
 
           {/* App Info */}
           <View style={styles.appInfo}>
+            <View style={styles.appIconContainer}>
+              <Ionicons name="globe" size={48} color="#4285f4" />
+            </View>
             <Text style={styles.appName}>Aura Browser</Text>
-            <Text style={styles.appVersion}>Version 1.0.0</Text>
+            <Text style={styles.appVersion}>Version 2.0.0</Text>
             <Text style={styles.appDescription}>
-              A fast, secure, and modern browser for Android
+              A fast, secure, and feature-rich browser with advanced privacy controls,
+              password management, and seamless browsing experience.
             </Text>
+            
+            <View style={styles.appActions}>
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="star-outline" size={20} color="#4285f4" />
+                <Text style={styles.actionButtonText}>Rate App</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="share-outline" size={20} color="#4285f4" />
+                <Text style={styles.actionButtonText}>Share</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -260,9 +522,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
-  lastSettingItem: {
-    borderBottomWidth: 0,
-  },
   activeSettingItem: {
     backgroundColor: 'rgba(76, 175, 80, 0.05)',
   },
@@ -303,6 +562,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
   },
+  appIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(66, 133, 244, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   appName: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -319,5 +587,27 @@ const styles = StyleSheet.create({
     color: '#aaaaaa',
     textAlign: 'center',
     lineHeight: 20,
+    marginBottom: 20,
+  },
+  appActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(66, 133, 244, 0.1)',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 133, 244, 0.3)',
+  },
+  actionButtonText: {
+    color: '#4285f4',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });

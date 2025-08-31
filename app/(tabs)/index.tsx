@@ -261,11 +261,32 @@ export default function BrowserScreen() {
     if (!url.trim()) return;
     
     let searchUrl = url;
+    
+    // Get search engine from settings
+    const searchEngine = settings?.searchEngine || 'google';
+    
     if (!url.includes('http://') && !url.includes('https://')) {
-      if (url.includes('.')) {
+      if (url.includes('.') && !url.includes(' ')) {
+        // Looks like a URL
         searchUrl = `https://${url}`;
       } else {
-        searchUrl = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+        // Search query - use selected search engine
+        switch (searchEngine) {
+          case 'bing':
+            searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(url)}`;
+            break;
+          case 'duckduckgo':
+            searchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(url)}`;
+            break;
+          case 'yahoo':
+            searchUrl = `https://search.yahoo.com/search?p=${encodeURIComponent(url)}`;
+            break;
+          case 'ecosia':
+            searchUrl = `https://www.ecosia.org/search?q=${encodeURIComponent(url)}`;
+            break;
+          default:
+            searchUrl = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+        }
       }
     }
     
