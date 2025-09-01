@@ -20,10 +20,10 @@ import { PasswordManagerSettings } from '@/components/settings/PasswordManagerSe
 import { PaymentMethodsSettings } from '@/components/settings/PaymentMethodsSettings';
 import { AddressesSettings } from '@/components/settings/AddressesSettings';
 import { PrivacySecuritySettings } from '@/components/settings/PrivacySecuritySettings';
+import { NotificationsSettings } from '@/components/settings/NotificationsSettings';
+import { AppearanceSettings } from '@/components/settings/AppearanceSettings';
 import { 
   AdvancedBrowserSettings, 
-  NotificationSettings, 
-  AppearanceSettings, 
   AccessibilitySettings,
   SitePermissions,
   LanguageSettings,
@@ -207,6 +207,26 @@ export default function SettingsScreen() {
       <PrivacySecuritySettings
         settings={advancedSettings.privacy}
         onSettingChange={(key, value) => handleSettingChange('privacy', key, value)}
+        onBack={() => setCurrentView('main')}
+      />
+    );
+  }
+
+  if (currentView === 'notifications') {
+    return (
+      <NotificationsSettings
+        settings={advancedSettings.notifications}
+        onSettingChange={(key, value) => handleSettingChange('notifications', key, value)}
+        onBack={() => setCurrentView('main')}
+      />
+    );
+  }
+
+  if (currentView === 'appearance') {
+    return (
+      <AppearanceSettings
+        settings={advancedSettings.appearance}
+        onSettingChange={(key, value) => handleSettingChange('appearance', key, value)}
         onBack={() => setCurrentView('main')}
       />
     );

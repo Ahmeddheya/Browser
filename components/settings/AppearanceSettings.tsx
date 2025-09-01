@@ -8,8 +8,16 @@ import {
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Slider from '@react-native-community/slider';
 import { AppearanceSettings as AppearanceSettingsType } from '../../types/settings';
+
+// Conditional import for Slider
+let Slider: any = null;
+
+try {
+  Slider = require('@react-native-community/slider').default;
+} catch (error) {
+  console.warn('Slider component not available:', error);
+}
 
 interface AppearanceSettingsProps {
   settings: AppearanceSettingsType;
@@ -81,16 +89,34 @@ export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({
         </View>
         
         <View style={styles.sliderContainer}>
-          <Slider
-            style={styles.slider}
-            minimumValue={12}
-            maximumValue={24}
-            value={settings.fontSize}
-            onValueChange={(value) => onSettingChange('fontSize', Math.round(value))}
-            minimumTrackTintColor="#4285f4"
-            maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
-            thumbStyle={styles.sliderThumb}
-          />
+          {Slider ? (
+            <Slider
+              style={styles.slider}
+              minimumValue={12}
+              maximumValue={24}
+              value={settings.fontSize}
+              onValueChange={(value) => onSettingChange('fontSize', Math.round(value))}
+              minimumTrackTintColor="#4285f4"
+              maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
+              thumbStyle={styles.sliderThumb}
+            />
+          ) : (
+            <View style={styles.sliderFallback}>
+              <TouchableOpacity
+                style={styles.fontSizeButton}
+                onPress={() => onSettingChange('fontSize', Math.max(12, settings.fontSize - 2))}
+              >
+                <Ionicons name="remove" size={20} color="#4285f4" />
+              </TouchableOpacity>
+              <Text style={styles.fontSizeValue}>{settings.fontSize}px</Text>
+              <TouchableOpacity
+                style={styles.fontSizeButton}
+                onPress={() => onSettingChange('fontSize', Math.min(24, settings.fontSize + 2))}
+              >
+                <Ionicons name="add" size={20} color="#4285f4" />
+              </TouchableOpacity>
+            </View>
+          )}
           <View style={styles.sliderLabels}>
             <Text style={styles.sliderLabel}>Small</Text>
             <Text style={styles.sliderLabel}>Large</Text>
@@ -302,6 +328,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#4285f4',
     width: 20,
     height: 20,
+  },
+  sliderFallback: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  fontSizeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(66, 133, 244, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fontSizeValue: {
+    fontSize: 16,
+    color: '#ffffff',
+    fontWeight: '600',
+    marginHorizontal: 20,
   },
   sliderLabels: {
     flexDirection: 'row',

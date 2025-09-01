@@ -1,7 +1,17 @@
 import * as SecureStore from 'expo-secure-store';
-import * as LocalAuthentication from 'expo-local-authentication';
 import { Platform } from 'react-native';
 import { SavedPassword } from '../types/settings';
+
+// Conditional import for LocalAuthentication
+let LocalAuthentication: any = null;
+
+if (Platform.OS !== 'web') {
+  try {
+    LocalAuthentication = require('expo-local-authentication');
+  } catch (error) {
+    console.warn('LocalAuthentication not available:', error);
+  }
+}
 
 export class PasswordManager {
   private static readonly PASSWORDS_KEY = 'saved_passwords';
@@ -9,7 +19,7 @@ export class PasswordManager {
 
   // Check if biometric authentication is available
   static async isBiometricAvailable(): Promise<boolean> {
-    if (Platform.OS === 'web') return false;
+    if (Platform.OS === 'web' || !LocalAuthentication) return false;
     
     try {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
@@ -22,7 +32,7 @@ export class PasswordManager {
 
   // Authenticate with biometrics
   static async authenticateWithBiometrics(): Promise<boolean> {
-    if (Platform.OS === 'web') return true;
+    if (Platform.OS === 'web' || !LocalAuthentication) return true;
     
     try {
       const result = await LocalAuthentication.authenticateAsync({
